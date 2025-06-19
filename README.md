@@ -64,29 +64,27 @@ The Music Education Scheduler addresses the unique challenges in music education
 - RESTful API architecture
 - JWT-based authentication with refresh tokens
 - Prisma for type-safe database access
-- Joi for request validation
+- Express-validator for request validation
 - Bull with Redis for scheduling reminders
 - Socket.io for real-time communication
 
 ### Database
 - PostgreSQL for relational data
 - Redis for session management and caching
-- Elasticsearch for advanced searching
 
 ### DevOps & Infrastructure
 - Docker for containerization
 - Docker Compose for local development
-- Kubernetes for production deployment
 - GitHub Actions for CI/CD
-- AWS (ECS/EKS, RDS, ElastiCache, S3) for hosting
+- AWS for hosting
 - Prometheus with Grafana for monitoring
 - ELK Stack for logging
 
 ## 🏗️ Architecture
 
-The application follows a microservices architecture with the following components:
+The application follows a modular architecture with the following components:
 
-1. **API Gateway Service**: Authentication, routing, rate limiting
+1. **API Gateway**: Authentication, routing, rate limiting
 2. **User Service**: Profile management, permissions
 3. **Scheduling Service**: Booking engine, availability management
 4. **Notification Service**: Email/SMS communications
@@ -148,7 +146,7 @@ The application follows a microservices architecture with the following componen
    - API: `http://localhost:4000`
    - API Documentation: `http://localhost:4000/api-docs`
 
-## 📦 Project Structure
+## 📂 Project Structure
 
 ```
 music-education-scheduler/
@@ -175,11 +173,11 @@ music-education-scheduler/
 │   │   ├── utils/            # Utility functions
 │   │   └── App.tsx           # Main app component
 │   └── package.json
-├── docker/                   # Docker configuration
-├── docs/                     # Documentation
-├── docker-compose.yml        # Docker Compose configuration
-├── .github/                  # GitHub Actions workflows
-└── README.md                 # Project documentation
+├── docker/                    # Docker configuration
+├── docs/                      # Documentation
+├── docker-compose.yml         # Docker Compose configuration
+├── .github/                   # GitHub Actions workflows
+└── README.md                  # Project documentation
 ```
 
 ## 🧪 Testing
@@ -196,7 +194,7 @@ npm test
 
 ## 🚢 Deployment
 
-The application can be deployed using Docker and Kubernetes:
+The application can be deployed using Docker:
 
 ```
 # Build Docker images
@@ -204,16 +202,13 @@ docker-compose build
 
 # Push images to registry
 docker-compose push
-
-# Deploy to Kubernetes
-kubectl apply -f k8s/
 ```
 
 ## 📝 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 👥 Contributing
+## 🙌 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
