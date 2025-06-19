@@ -1,0 +1,374 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with roles
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  timezone  String   @default("UTC")
+  role      UserRole @default(STUDENT)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teacherProfile TeacherProfile?
+  studentProfile StudentProfile?
+  parentProfile  ParentProfile?
+  payments       Payment[]
+  notifications  Notification[]
+  messages       Message[]
+
+  // Child-parent relation for student accounts
+  parentStudents ParentStudent[] @relation("ParentToStudent")
+  studentParents ParentStudent[] @relation("StudentToParent")
+
+  // Instrument checkouts
+  instrumentCheckouts InstrumentCheckout[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+// Teacher profile details
+model TeacherProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  bio               String?
+  specializations   String[]
+  hourlyRate        Decimal  @map("hourly_rate")
+  minLessonDuration Int      @map("min_lesson_duration") // minutes
+  maxLessonDuration Int      @map("max_lesson_duration") // minutes
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability   TeacherAvailability[]
+  lessons        Lesson[]
+  lessonPackages LessonPackage[]
+
+  @@map("teacher_profiles")
+}
+
+// Student profile details
+model StudentProfile {
+  id            String     @id @default(uuid())
+  userId        String     @unique @map("user_id")
+  skillLevel    SkillLevel @default(BEGINNER) @map("skill_level")
+  learningGoals String?    @map("learning_goals")
+  notes         String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons         Lesson[]
+  packagePurchases PackagePurchase[]
+  parents         ParentStudent[]
+  practiceAssignments PracticeAssignment[]
+
+  @@map("student_profiles")
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+}
+
+// Parent profile details
+model ParentProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students ParentStudent[]
+
+  @@map("parent_profiles")
+}
+
+// Many-to-many relationship between parents and students
+model ParentStudent {
+  id         String   @id @default(uuid())
+  parentId   String   @map("parent_id")
+  studentId  String   @map("student_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  parent     User     @relation("ParentToStudent", fields: [parentId], references: [id])
+  student    User     @relation("StudentToParent", fields: [studentId], references: [id])
+  studentProfile StudentProfile @relation(fields: [studentId], references: [userId])
+  
+  @@unique([parentId, studentId])
+  @@map("parent_students")
+}
+
+// Teacher availability
+model TeacherAvailability {
+  id          String   @id @default(uuid())
+  teacherId   String   @map("teacher_id")
+  dayOfWeek   Int?     @map("day_of_week") // 0-6 for Sunday-Saturday, null if not recurring
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+  isRecurring Boolean  @default(true) @map("is_recurring")
+  specificDate DateTime? @map("specific_date") // Only for non-recurring slots
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("teacher_availability")
+}
+
+// Lessons
+model Lesson {
+  id          String      @id @default(uuid())
+  teacherId   String      @map("teacher_id")
+  studentId   String      @map("student_id")
+  status      LessonStatus @default(SCHEDULED)
+  startTime   DateTime    @map("start_time")
+  endTime     DateTime    @map("end_time")
+  lessonType  LessonType  @default(INDIVIDUAL) @map("lesson_type")
+  roomId      String?     @map("room_id")
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  teacher     TeacherProfile      @relation(fields: [teacherId], references: [id])
+  student     StudentProfile      @relation(fields: [studentId], references: [id])
+  room        Room?               @relation(fields: [roomId], references: [id])
+  payment     Payment?
+  practiceAssignments PracticeAssignment[]
+
+  @@map("lessons")
+}
+
+enum LessonStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum LessonType {
+  INDIVIDUAL
+  GROUP
+  WORKSHOP
+}
+
+// Rooms for lessons
+model Room {
+  id        String   @id @default(uuid())
+  name      String
+  capacity  Int
+  hasPiano  Boolean  @default(false) @map("has_piano")
+  features  String[]
+  location  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  lessons   Lesson[]
+
+  @@map("rooms")
+}
+
+// Instruments inventory
+model Instrument {
+  id             String   @id @default(uuid())
+  name           String
+  type           String
+  status         InstrumentStatus @default(AVAILABLE)
+  location       String?
+  serialNumber   String?  @map("serial_number")
+  purchaseDate   DateTime? @map("purchase_date")
+  lastMaintenance DateTime? @map("last_maintenance")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  checkouts      InstrumentCheckout[]
+
+  @@map("instruments")
+}
+
+enum InstrumentStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+}
+
+// Instrument checkouts
+model InstrumentCheckout {
+  id             String    @id @default(uuid())
+  instrumentId   String    @map("instrument_id")
+  userId         String    @map("user_id")
+  checkoutTime   DateTime  @map("checkout_time")
+  expectedReturn DateTime  @map("expected_return")
+  actualReturn   DateTime? @map("actual_return")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  instrument     Instrument @relation(fields: [instrumentId], references: [id])
+  user           User       @relation(fields: [userId], references: [id])
+
+  @@map("instrument_checkouts")
+}
+
+// Payments
+model Payment {
+  id               String        @id @default(uuid())
+  userId           String        @map("user_id")
+  amount           Decimal
+  status           PaymentStatus @default(PENDING)
+  paymentMethod    String?       @map("payment_method")
+  stripePaymentId  String?       @map("stripe_payment_id")
+  description      String?
+  lessonId         String?       @unique @map("lesson_id")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user             User          @relation(fields: [userId], references: [id])
+  lesson           Lesson?       @relation(fields: [lessonId], references: [id])
+  packagePurchase  PackagePurchase?
+
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Lesson packages
+model LessonPackage {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  teacherId          String?  @map("teacher_id")
+  lessonCount        Int      @map("lesson_count")
+  price              Decimal
+  validityPeriodDays Int      @map("validity_period_days")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teacher            TeacherProfile?    @relation(fields: [teacherId], references: [id])
+  purchases          PackagePurchase[]
+
+  @@map("lesson_packages")
+}
+
+// Student package purchases
+model PackagePurchase {
+  id                String   @id @default(uuid())
+  studentId         String   @map("student_id")
+  packageId         String   @map("package_id")
+  paymentId         String   @unique @map("payment_id")
+  lessonsRemaining  Int      @map("lessons_remaining")
+  expiryDate        DateTime @map("expiry_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  student           StudentProfile @relation(fields: [studentId], references: [id])
+  package           LessonPackage  @relation(fields: [packageId], references: [id])
+  payment           Payment        @relation(fields: [paymentId], references: [id])
+
+  @@map("package_purchases")
+}
+
+// Practice assignments
+model PracticeAssignment {
+  id        String              @id @default(uuid())
+  lessonId  String              @map("lesson_id")
+  studentId String              @map("student_id")
+  title     String
+  description String?
+  dueDate   DateTime?           @map("due_date")
+  status    PracticeAssignmentStatus @default(ASSIGNED)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  lesson    Lesson              @relation(fields: [lessonId], references: [id])
+  student   StudentProfile      @relation(fields: [studentId], references: [id])
+
+  @@map("practice_assignments")
+}
+
+enum PracticeAssignmentStatus {
+  ASSIGNED
+  COMPLETED
+  OVERDUE
+}
+
+// Notifications
+model Notification {
+  id        String            @id @default(uuid())
+  userId    String            @map("user_id")
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean           @default(false) @map("is_read")
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  user      User              @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  LESSON_REMINDER
+  LESSON_CANCELLED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  ASSIGNMENT_ADDED
+  SYSTEM_NOTIFICATION
+}
+
+// In-app messaging
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String   @map("sender_id")
+  receiverId String   @map("receiver_id")
+  content    String
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  sender     User     @relation(fields: [senderId], references: [id])
+
+  @@map("messages")
+}
